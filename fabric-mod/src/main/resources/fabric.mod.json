@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "rehard_security_client",
+  "version": "1.1.1",
+  "name": "SSaVS",
+  "description": "Client side companion for the Rehard Security plugin. Responds to mod verification requests and displays interactive votes.",
+  "authors": ["Rehard"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.rehard.securityclient.SecurityClientMod"]
+  },
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "fabric": "*",
+    "minecraft": "1.21.x"
+  }
+}
