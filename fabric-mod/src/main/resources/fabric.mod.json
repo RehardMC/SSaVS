@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "rehard_security_client",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "name": "SSaVS",
   "description": "Client side companion for the Rehard Security plugin. Responds to mod verification requests and displays interactive votes.",
   "authors": ["Rehard"],
