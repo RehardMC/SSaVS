@@ -22,6 +22,10 @@ import net.minecraft.util.Identifier;
 
 import com.rehard.securityclient.net.RawPluginPayload;
 
+import java.net.NetworkInterface;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -33,14 +37,15 @@ import java.util.List;
  *
  * Supported subchannels (sent by the server):
  *  - "RequestMods"  — server asks the client to send its mod/resource pack list
+ *  - "RequestHwid"  — server asks the client to send its hardware identifier
  *  - "StartVote"    — starts a voting UI on the client
  *  - "VoteStats"    — updates vote statistics
  *  - "VoteEnd"      — finalizes a vote and unfreezes the player if needed
  *  - "Pong"         — reply to a connectivity check (optional)
  *
- * The client proactively sends its mod/resource-pack list as soon as it
- * joins the server, so that the server can validate even if it never
- * sends a RequestMods packet.
+ * The client proactively sends its mod/resource-pack list and hardware
+ * identifier as soon as it joins the server, so that the server can
+ * validate even if it never sends a RequestMods/RequestHwid packet.
  */
 @Environment(EnvType.CLIENT)
 public final class SecurityClientMod implements ClientModInitializer {
@@ -67,6 +72,7 @@ public final class SecurityClientMod implements ClientModInitializer {
             if (sub == null) return;
             switch (sub) {
                 case "RequestMods" -> ctx.client().execute(() -> sendModList(ctx.client()));
+                case "RequestHwid" -> ctx.client().execute(() -> sendHwid(ctx.client()));
                 case "StartVote"   -> ctx.client().execute(() -> handleStartVote(in));
                 case "VoteStats"   -> ctx.client().execute(() -> handleVoteStats(in));
                 case "VoteEnd"     -> ctx.client().execute(() -> handleVoteEnd(in));
@@ -75,11 +81,15 @@ public final class SecurityClientMod implements ClientModInitializer {
             }
         });
 
-        // Proactively send mod/resource pack list upon joining a server.
+        // Proactively send mod/resource pack list and HWID upon joining a server.
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             sendModList(client);
+            sendHwid(client);
             // additional send on next tick to catch resource-pack manager initialisation
-            client.execute(() -> sendModList(client));
+            client.execute(() -> {
+                sendModList(client);
+                sendHwid(client);
+            });
         });
 
         // Freeze player movement every tick when freezeMovement is active.
@@ -153,6 +163,52 @@ public final class SecurityClientMod implements ClientModInitializer {
         } catch (Exception e) {
             logClient("Failed to send ModList: " + e.getMessage());
         }
+    }
+
+    /**
+     * Computes a simple hardware identifier based on MAC address and system
+     * properties and sends it to the server.
+     */
+    private static void sendHwid(MinecraftClient client) {
+        try {
+            String hwid = computeHwid();
+            ByteArrayDataOutput out = ByteStreams.newDataOutput();
+            out.writeUTF("Hwid");
+            out.writeUTF(hwid);
+            ClientPlayNetworking.send(new RawPluginPayload(out.toByteArray()));
+            logClient("Sent HWID: " + hwid);
+        } catch (Exception e) {
+            logClient("Failed to send HWID: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Builds a hardware ID hash using available network interface MAC address
+     * and a few system properties.  Returns a hex-encoded SHA-256 digest.
+     */
+    private static String computeHwid() throws Exception {
+        MessageDigest sha = MessageDigest.getInstance("SHA-256");
+
+        try {
+            var en = NetworkInterface.getNetworkInterfaces();
+            if (en != null) {
+                while (en.hasMoreElements()) {
+                    byte[] mac = en.nextElement().getHardwareAddress();
+                    if (mac != null) {
+                        sha.update(mac);
+                        break;
+                    }
+                }
+            }
+        } catch (Throwable ignore) {
+            // Ignore network interface issues
+        }
+
+        sha.update(System.getProperty("os.name", "").getBytes(StandardCharsets.UTF_8));
+        sha.update(System.getProperty("os.version", "").getBytes(StandardCharsets.UTF_8));
+        sha.update(System.getProperty("user.name", "").getBytes(StandardCharsets.UTF_8));
+
+        return HexFormat.of().formatHex(sha.digest());
     }
 
     // -------------------------------------------------------------------------
