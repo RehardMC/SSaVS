@@ -6,11 +6,11 @@ import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.util.Identifier;
 
 /**
- * Сырой payload для обмена по каналу security:modcheck.
+ * Сырой payload для обмена по каналу ssavs:security.
  */
 public record RawPluginPayload(byte[] data) implements CustomPayload {
     public static final Id<RawPluginPayload> ID =
-            new Id<>(Identifier.of("security", "modcheck"));
+            new Id<>(Identifier.of("ssavs", "security"));
 
     // Правильно реализованный кодек
     public static final PacketCodec<RegistryByteBuf, RawPluginPayload> CODEC =
